@@ -1,0 +1,10 @@
+[Interface]
+PrivateKey = {{ wg_private_key }}
+Address = {{ wg_ip_address }}
+DNS = 192.168.222.1
+ 
+[Peer]
+# Put here the content of vpn-server-public.key created on the server
+PublicKey = {{ wg_server_pub_key }}
+Endpoint = {{ wg_server_endpoint }}
+AllowedIPs = {{ wg_server_allowed_ips }}

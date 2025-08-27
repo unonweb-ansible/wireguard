@@ -1,0 +1,11 @@
+---
+connection_name: homeoffice
+restart_daemons: false
+# all
+server_pub_key:
+server_endpoint:
+server_allowed_ips:
+dns_ip:
+# host
+client_private_key:
+client_ip:

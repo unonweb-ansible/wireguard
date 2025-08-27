@@ -1,0 +1,7 @@
+---
+- name: Restart NetworkManager
+  when: restart_daemons == true
+  become: true
+  ansible.builtin.service:
+    name: NetworkManager.service
+    state: restarted

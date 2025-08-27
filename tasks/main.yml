@@ -1,0 +1,99 @@
+---
+# NOTES
+# -----
+# 1. Wireguard-Keys manuell erzeugen: 
+#    wg genkey > /tmp/private.key
+#    cat /tmp/private.key | wg pubkey > /tmp/public.key
+# 2. Keepass-Einträge mit diesen Keys für den entsprechenden Host erstellen (z.B. fk-mobil25 public key)
+# 3. Keys in die entsprechenden Hosts Variablen kopieren
+# 4. Keys löschen:
+#    rm /tmp/public.key /tmp/private.key
+# 5. WG-IP-Adresse von der OPNsense WG-Server-Config holen und in der entsprechenden Hosts-Variablen eintragen
+# 6. Peer auf dem Wireguard-Server erstellen und Public-Key einfügen
+
+# ATTENTION
+# ---------
+# Die Sektion [wireguard-peer.tWgOrYu3YgTJCRG9Qn3Wen6yJTqjCvmiVhGagTEueFQ=] in homeoffice.nmconnection wird gerade doppelt erzeugt. Die zweite Version überschreibt die erste. Die zweite Version ist korrekt. Ich weiß nicht woher die erste kommt und wie ich sie ändern kann.
+
+- name: Wireguard role
+  tags:
+  - wireguard
+  block:
+
+  # install
+  - name: Install wireguard packages
+    become: true
+    ansible.builtin.apt:
+      name: 
+      - wireguard
+      - openresolv
+      state: present
+      
+  #- name: Check if {{ connection_name }}.nmconnection exists
+  #  ansible.builtin.stat:
+  #    path: "/etc/NetworkManager/system-connections/{{ connection_name }}.nmconnection"
+  #  register: nmconnection
+  
+  # Create NetworkManager connection
+  - name: Setup NetworkManager connection for wireguard 
+    vars:
+      _client_ip: "{{ client_ip }}"
+      _client_private_key: "{{ client_private_key }}"
+      _connection_name: "{{ connection_name }}"
+      _dns_ip: "{{ dns_ip }}"
+      _server_pub_key: "{{ server_pub_key }}"
+      _server_endpoint: "{{ server_endpoint }}"
+      _server_allowed_ips: "{{ server_allowed_ips }}"
+    block:
+
+    - name: Create a NetworkManager connection for wireguard
+      # we need to use the nmcli tool to get a UUID for the connection
+      # not idempotent!
+      become: true
+      notify: Restart NetworkManager
+      community.general.nmcli:
+        type: wireguard
+        conn_name: "{{ _connection_name }}"
+        ifname: "{{ _connection_name }}"
+        autoconnect: false
+        state: present
+        ip4: "{{ _client_ip }}"
+        dns4: "{{ _dns_ip }}"
+        dns4_search: "~"
+        method6: disabled
+        wireguard:
+            private-key: "{{ _client_private_key }}"
+
+    - name: Remove existing peers entry
+      tags: regex
+      become: true
+      ansible.builtin.replace:
+        path: "/etc/NetworkManager/system-connections/{{ _connection_name }}.nmconnection"
+        regexp: '\[wireguard-peer[\s\S]*?0\.0\.0\.0\/0;'
+        replace: ""
+
+    - name: Insert block into {{ _connection_name }}.nmconnection # not idempotent!
+      become: true
+      notify: Restart NetworkManager
+      ansible.builtin.blockinfile:
+        path: "/etc/NetworkManager/system-connections/{{ _connection_name }}.nmconnection"
+        group: root
+        owner: root
+        mode: u=rw,g=,o=
+        append_newline: true
+        prepend_newline: true
+        block: |
+          [wireguard-peer.{{ _server_pub_key }}]
+          endpoint={{ _server_endpoint }}
+          allowed-ips={{ _server_allowed_ips }}
+  
+  # DNS
+  - name: DNS für VPN
+    become: true
+    ansible.builtin.copy:
+      src: rc-manager.conf
+      dest: /etc/NetworkManager/conf.d/rc-manager.conf
+      force: true # the remote file will be replaced when contents are different than the source
+      owner: root
+      group: root
+      mode: u=rw,g=r,o=r
