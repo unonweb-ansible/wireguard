@@ -1,20 +1,4 @@
 ---
-# NOTES
-# -----
-# 1. Wireguard-Keys manuell erzeugen: 
-#    wg genkey > /tmp/private.key
-#    cat /tmp/private.key | wg pubkey > /tmp/public.key
-# 2. Keepass-Einträge mit diesen Keys für den entsprechenden Host erstellen (z.B. fk-mobil25 public key)
-# 3. Keys in die entsprechenden Hosts Variablen kopieren
-# 4. Keys löschen:
-#    rm /tmp/public.key /tmp/private.key
-# 5. WG-IP-Adresse von der OPNsense WG-Server-Config holen und in der entsprechenden Hosts-Variablen eintragen
-# 6. Peer auf dem Wireguard-Server erstellen und Public-Key einfügen
-
-# ATTENTION
-# ---------
-# Die Sektion [wireguard-peer.tWgOrYu3YgTJCRG9Qn3Wen6yJTqjCvmiVhGagTEueFQ=] in homeoffice.nmconnection wird gerade doppelt erzeugt. Die zweite Version überschreibt die erste. Die zweite Version ist korrekt. Ich weiß nicht woher die erste kommt und wie ich sie ändern kann.
-
 - name: Wireguard role
   tags:
   - wireguard
@@ -41,12 +25,12 @@
     - name: Check required vars for wireguard
       ansible.builtin.assert:
         that:
-        - wireguard.network_manager.connection_name != None
-        - wireguard.client.ip != None
-        - wireguard.network_manager.dns_ip != None
-        - wireguard.server.allowed_ips != None
-        - wireguard.server.endpoint != None
-        - wireguard.server.pub_key != None
+        - wireguard_network_manager_connection_name != None
+        - wireguard_client_ip != None
+        - wireguard_network_manager_dns_ip != None
+        - wireguard_server_allowed_ips != None
+        - wireguard_server_endpoint != None
+        - wireguard_server_key_public != None
 
     # create connection
     # we need to use the nmcli tool to get a UUID for the connection
@@ -56,41 +40,41 @@
       notify: Restart NetworkManager
       community.general.nmcli:
         type: wireguard
-        conn_name: "{{ wireguard.network_manager.connection_name }}"
-        ifname: "{{ wireguard.network_manager.connection_name }}"
+        conn_name: "{{ wireguard_network_manager_connection_name }}"
+        ifname: "{{ wireguard_network_manager_connection_name }}"
         autoconnect: false
         state: present
-        ip4: "{{ wireguard.client.ip }}"
-        dns4: "{{ wireguard.network_manager.dns_ip }}"
+        ip4: "{{ wireguard_client_ip }}"
+        dns4: "{{ wireguard_network_manager_dns_ip }}"
         dns4_search: "~"
         method6: disabled
         wireguard:
-            private-key: "{{ wireguard.client.private_key }}"
+            private-key: "{{ wireguard_client_key_private }}"
 
     # remove existing wireguard peer section
     - name: Remove existing peers entry
       tags: regex
       become: true
       ansible.builtin.replace:
-        path: "/etc/NetworkManager/system-connections/{{ wireguard.network_manager.connection_name }}.nmconnection"
+        path: "/etc/NetworkManager/system-connections/{{ wireguard_network_manager_connection_name }}.nmconnection"
         regexp: '\[wireguard-peer[\s\S]*?0\.0\.0\.0\/0;'
         replace: ""
 
     # insert wireguard section
-    - name: Insert block into {{ wireguard.network_manager.connection_name }}.nmconnection # not idempotent!
+    - name: Insert block into {{ wireguard_network_manager_connection_name }}.nmconnection # not idempotent!
       become: true
       notify: Restart NetworkManager
       ansible.builtin.blockinfile:
-        path: "/etc/NetworkManager/system-connections/{{ wireguard.network_manager.connection_name }}.nmconnection"
+        path: "/etc/NetworkManager/system-connections/{{ wireguard_network_manager_connection_name }}.nmconnection"
         group: root
         owner: root
         mode: u=rw,g=,o=
         append_newline: true
         prepend_newline: true
         block: |
-          [wireguard-peer.{{ wireguard.server.pub_key }}]
-          endpoint={{ wireguard.server.endpoint }}
-          allowed-ips={{ wireguard.server.allowed_ips }}
+          [wireguard-peer.{{ wireguard_server_key_public }}]
+          endpoint={{ wireguard_server_endpoint }}
+          allowed-ips={{ wireguard_server_allowed_ips }}
   
   # DNS
   - name: DNS für VPN
