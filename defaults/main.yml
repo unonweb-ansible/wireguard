@@ -1,4 +1,12 @@
 ---
+wireguard_server_key_public:
+wireguard_server_endpoint:
+wireguard_server_allowed_ips:
+wireguard_client_key_private:
+wireguard_client_ip:
+wireguard_network_manager_connection_name: wireguard
+wireguard_network_manager_dns_ip:
+
 wireguard:
   server:
     pub_key:
